@@ -72,7 +72,6 @@ func main() {
 
 	t2 := time.Now()
 	ts := t2.Sub(t1).Seconds()
-
 	speed := float64(target) / ts
 
 	if *csvFormat {
