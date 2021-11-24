@@ -1,8 +1,8 @@
 use std::{ops::Sub, sync::{Arc, atomic::AtomicUsize}};
 
 use clap::Clap;
-use mpsc::{Receiver, Sender};
 use tokio::sync::mpsc;
+use bytes::Bytes;
 
 #[derive(Clap, Clone)]
 struct Opts {
@@ -23,27 +23,32 @@ struct Opts {
 
 static SN : AtomicUsize = AtomicUsize::new(0);
 
-async fn worker(mut queue: Receiver<Arc<Vec<u8>>>, done: Sender<usize>, target:usize) {
+type EventSender = mpsc::Sender<Bytes>;
+type EventReceiver = mpsc::Receiver<Bytes>;
+
+async fn worker(mut queue: EventReceiver, done: mpsc::Sender<usize>, target:usize) {
     while let Some(event) = queue.recv().await {
-        let event = event.as_ref();
-        if event.len() == 4 && event.eq(b"quit") {
+        if event.len() == 4 && event.eq_ignore_ascii_case(b"quit") {
             break;
         }
-        let sn = SN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let sn = SN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         if sn + 1 == target {
             done.send(sn+1).await.unwrap();
         }
     }
 }
 
-async fn dispatch(opts: Opts, address: Arc<Vec<Sender<Arc<Vec<u8>>>>>) {
-    let event : Vec<u8> = Vec::with_capacity(opts.size);
-    for _ in 0..opts.event {
-        let iter = address.clone();
-        let e = Arc::new(Vec::from(event.as_slice()));
+async fn dispatch(opts: Opts, address: Vec<EventSender>) {
+
+    let buff: Vec<u8> = Vec::with_capacity(opts.size);
+
+    for addr in address.iter() {
+        let addr = addr.clone();
+        let events = opts.event;
+        let event = Bytes::copy_from_slice(&buff);
         tokio::spawn(async move {
-            for addr in iter.iter() {
-                addr.send(e.clone()).await.unwrap();
+            for _ in 0..events {
+                addr.send(event.clone()).await.unwrap();
             }
         });
     }
@@ -54,11 +59,12 @@ async fn dispatch(opts: Opts, address: Arc<Vec<Sender<Arc<Vec<u8>>>>>) {
 async fn main() -> Result<(), Box<dyn std::error::Error>>{
     let opts = Opts::parse();
 
-    // address is the send port of all workers
-    let mut address = vec![];
     let (done_tx, mut done_rx) = mpsc::channel(1);
     let target = opts.event * opts.worker;
     
+    // address is the send port of all workers
+    let mut address = vec![];
+
     // startup workers
     for _ in 0..opts.worker {
         let (tx, rx) = mpsc::channel(opts.queue);
@@ -70,8 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>{
     let t1 = chrono::Local::now();
 
     // spawn the dispatch
-    let address = Arc::new(address);
-    tokio::spawn( dispatch(opts.clone(), address.clone()));
+    tokio::spawn( dispatch(opts.clone(), address));
 
     // wait all task done
     if let Some(_done) = done_rx.recv().await {

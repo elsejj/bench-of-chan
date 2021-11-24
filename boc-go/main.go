@@ -25,14 +25,14 @@ func worker(queue chan []byte, done chan int64, doneTarget int64) {
 }
 
 func dispatch(events, eventSize int, address []chan []byte) {
-	for i := 0; i < events; i++ {
-		go func() {
-			event := make([]byte, eventSize)
-			for _, addr := range address {
-				addr <- event
-			}
-		}()
-	}
+    for i := 0; i < events; i++ {
+        go func() {
+            for _, addr := range address {
+                event := make([]byte, eventSize)
+                addr <- event
+            }
+        }()
+    }
 }
 
 func main() {
