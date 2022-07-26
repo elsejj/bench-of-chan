@@ -8,6 +8,9 @@ edition = "2018"
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
-clap = "3.0.0-beta.2"
-chrono="0.4"
+clap = { version = "3", features = ["derive"] }
+time="0.3"
 bytes="1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+pprof = { version = "0.8", features = ["flamegraph"] }

@@ -1,3 +1,5 @@
 target
 Cargo.lock
 go.sum
+*.svg
+*.pprof
