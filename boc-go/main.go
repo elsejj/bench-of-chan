@@ -26,6 +26,9 @@ type IntEvent struct {
 type StrEvent struct {
 	Val string
 }
+type CheapStrEvent struct {
+	Val *string
+}
 
 func NewIntEvent(seed int64) Event {
 	return IntEvent{seed}
@@ -33,6 +36,11 @@ func NewIntEvent(seed int64) Event {
 
 func NewStrEvent(seed int64) Event {
 	return StrEvent{strings.Repeat("A", int(seed))}
+}
+
+func NewCheepStrEvent(seed int64) Event {
+	s := strings.Repeat("A", int(seed))
+	return CheapStrEvent{Val: &s}
 }
 
 func (e IntEvent) IsExit() bool {
@@ -47,8 +55,16 @@ func (e StrEvent) IsExit() bool {
 	return e.Val == "exit"
 }
 
+func (e CheapStrEvent) IsExit() bool {
+	return *e.Val == "exit"
+}
+
 func (e StrEvent) Clone() Event {
 	return StrEvent{strings.Clone(e.Val)}
+}
+
+func (e CheapStrEvent) Clone() Event {
+	return CheapStrEvent{e.Val}
 }
 
 func worker(queue chan Event, done chan int64, doneTarget int64) {
@@ -77,12 +93,28 @@ func dispatch(events, eventSize int64, address []chan Event, eventType int) {
 		event = NewIntEvent(eventSize)
 	case 1:
 		event = NewStrEvent(eventSize)
+	case 2:
+		event = NewCheepStrEvent(eventSize)
 	default:
 		panic(fmt.Sprintf("invalid event type %d", eventType))
 	}
 	for i := 0; i < len(address); i++ {
 		go dispatchTo(event, events, address[i])
 	}
+}
+
+func NameOfEventtype(eventType int) string {
+	switch eventType {
+	case 0:
+		return "int"
+	case 1:
+		return "str"
+	case 2:
+		return "shared_str"
+	default:
+		return "unknown"
+	}
+
 }
 
 func main() {
@@ -141,7 +173,7 @@ func main() {
 	speed := float64(totalEvents) / ts
 
 	if *csvFormat {
-		fmt.Printf("go,%d,%d,%.3f,%.3f", *workers, *events, ts, speed)
+		fmt.Printf("go,%s,%d,%d,%.3f,%.3f", NameOfEventtype(*eventType), *workers, *events, ts, speed)
 	} else {
 		fmt.Printf("workers   : %d\n", *workers)
 		fmt.Printf("events    : %d\n", *events)

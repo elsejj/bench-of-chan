@@ -32,7 +32,7 @@ while getopts "w:e:q:t:s:v" opt; do
   esac
 done
 
-echo "program,worker,event,time,speed"
+echo "program,etype,worker,event,time,speed"
 if [ -n "${verbose}" ]; then
   echo ${EGO} -c -w ${worker} -e ${events} -q ${queue} -t ${etype} -s ${esize} ${verbose}
 fi

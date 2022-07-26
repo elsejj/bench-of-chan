@@ -48,6 +48,7 @@ static SN : AtomicUsize = AtomicUsize::new(0);
 enum Event{
     Int(i64),
     Str(String),
+    CheapStr(&'static str),
 }
 
 impl Event{
@@ -55,6 +56,11 @@ impl Event{
         match etype {
             0 => Self::Int(seed),
             1 => Self::Str("A".repeat(seed as usize)),
+            2 => {
+                let s = Box::new("A".repeat(seed as usize));
+                let s: &'static str = Box::leak(s).as_str();
+                Event::CheapStr(s)
+            } 
             _ => panic!("invalid event type"),
         }
 
@@ -64,6 +70,7 @@ impl Event{
         match self {
             Event::Int(v) => (-1).eq(v),
             Event::Str(v) => v.eq("exit"),
+            Event::CheapStr(v) => "exit".eq(*v),
         }
     } 
 }
@@ -141,8 +148,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>>{
     }
     let ts = t2.sub(t1).as_seconds_f64();
     let speed = (total_events) as f64 / ts;
+    let etype = match opts.etype {
+        0 => "int",
+        1 => "str",
+        2 => "shared_str",
+        _ => "unknown",
+    };
     if opts.csv {
-        println!("rs,{},{},{:.3},{:.3}", opts.worker, opts.event, ts, speed)
+        println!("rs,{},{},{},{:.3},{:.3}", etype, opts.worker, opts.event, ts, speed)
     }else{
         println!("workers   : {}", opts.worker);
         println!("events    : {}", opts.event);
